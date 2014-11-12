@@ -1,0 +1,1 @@
+./configure --CC mpicc --CFLAGS -march='armv8-a+fp+simd -O3'
