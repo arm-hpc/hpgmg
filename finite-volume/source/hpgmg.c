@@ -43,6 +43,8 @@
 #include "mg.h"
 #include "operators.h"
 #include "solvers.h"
+
+#include "marker_stub.h"
 //------------------------------------------------------------------------------------------------------------------------------
 int main(int argc, char **argv){
   int MPI_Rank=0;
@@ -78,6 +80,7 @@ int main(int argc, char **argv){
 
   if(MPI_threadingModel>MPI_threadingModelRequested)MPI_threadingModel=MPI_threadingModelRequested;
   if(MPI_Rank==0){
+       MARKER_INIT;
        if(MPI_threadingModelRequested == MPI_THREAD_MULTIPLE  )printf("Requested MPI_THREAD_MULTIPLE, ");
   else if(MPI_threadingModelRequested == MPI_THREAD_SINGLE    )printf("Requested MPI_THREAD_SINGLE, ");
   else if(MPI_threadingModelRequested == MPI_THREAD_FUNNELED  )printf("Requested MPI_THREAD_FUNNELED, ");
@@ -153,20 +156,27 @@ int main(int argc, char **argv){
   int minCoarseDim = 1;
   MGBuild(&all_grids,&fine_grid,a,b,minCoarseDim);
   //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  int doTiming;for(doTiming=0;doTiming<=1;doTiming++){ // first pass warms up, second times
+  MARKER_START(MPI_Rank);
+  #if defined (USE_MPI) && defined(GEM5_MARKERS)
+  MPI_Barrier(MPI_COMM_WORLD);
+  #endif
+
+  int doTiming;for(doTiming=0;doTiming<=0;doTiming++){ // first pass warms up, second times
   MGResetTimers(&all_grids);
   #ifdef USE_HPM // IBM performance counters for BGQ...
   if(doTiming)HPM_Start("FMGSolve()");
   #endif
   #ifdef USE_FCYCLES
-  int trial;for(trial=0;trial<10;trial++){zero_vector(all_grids.levels[0],VECTOR_U);FMGSolve(&all_grids,VECTOR_U,VECTOR_F,a,b,1e-15);}
+  int trial;for(trial=0;trial<3;trial++){zero_vector(all_grids.levels[0],VECTOR_U);FMGSolve(&all_grids,VECTOR_U,VECTOR_F,a,b,1e-15);}
   #else
-  int trial;for(trial=0;trial< 5;trial++){zero_vector(all_grids.levels[0],VECTOR_U); MGSolve(&all_grids,VECTOR_U,VECTOR_F,a,b,1e-15);}
+  int trial;for(trial=0;trial<5;trial++){zero_vector(all_grids.levels[0],VECTOR_U); MGSolve(&all_grids,VECTOR_U,VECTOR_F,a,b,1e-15);}
   #endif
   #ifdef USE_HPM // IBM performance counters for BGQ...
   if(doTiming)HPM_Stop("FMGSolve()");
   #endif
   }
+  MARKER_STOP(MPI_Rank);
+
   MGPrintTiming(&all_grids); // don't include the error check in the timing results
   //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   if(MPI_Rank==0){printf("calculating error...\n");}
